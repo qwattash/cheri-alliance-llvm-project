@@ -1421,11 +1421,13 @@ def : Pat<(int_cheri_ddc_get), (CSpecialRW SCR_DDC.Encoding, C0)>;
 let Predicates = [HasZCheriPurecapOrCheri, IsPureCapABI] in
 def : Pat<(int_cheri_stack_cap_get), (CLenVT (COPY C2))>;
 
-let Predicates = [HasZCheriPurecapOrCheri, IsCapMode] in
-def : Pat<(int_cheri_pcc_get), (AUIPCC 0)>;
+let Predicates = [HasZCheriPurecapOrCheri] in {
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Size = 12 in
+def PseudoCGetPCC : Pseudo<(outs GPCR:$rd), (ins ), [],
+                           "cgetpcc", "$rd">;
 
-let Predicates = [HasCheri, NotCapMode] in
-def : Pat<(int_cheri_pcc_get), (CSpecialRW SCR_PCC.Encoding, C0)>;
+def : Pat<(int_cheri_pcc_get), (PseudoCGetPCC)>;
+}
 
 /// Fast Register-Clearing Instructions
 

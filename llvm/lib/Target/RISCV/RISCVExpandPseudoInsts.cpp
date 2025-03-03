@@ -65,6 +65,7 @@ private:
                              MachineBasicBlock::iterator MBBI,
                              MachineBasicBlock::iterator &NextMBBI);
   bool expandCGetAddr(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
+  bool expandCGetPCC(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
   bool expandCCOp(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandVSetVL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
@@ -136,6 +137,8 @@ bool RISCVExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandCapLoadTLSIEAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoCLC_TLS_GD:
     return expandCapLoadTLSGDCap(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoCGetPCC:
+    return expandCGetPCC(MBB, MBBI);
   case RISCV::PseudoRV32ZdinxSD:
     return expandRV32ZdinxStore(MBB, MBBI);
   case RISCV::PseudoRV32ZdinxLD:
@@ -275,6 +278,40 @@ bool RISCVExpandPseudo::expandCGetAddr(MachineBasicBlock &MBB,
               getRegState(MBBI->getOperand(1)))
       .addImm(0);
   MBBI->eraseFromParent(); // The pseudo instruction is gone now.
+  return true;
+}
+
+bool RISCVExpandPseudo::expandCGetPCC(MachineBasicBlock &MBB,
+                                      MachineBasicBlock::iterator MBBI) {
+  const auto &STI = MBB.getParent()->getSubtarget<RISCVSubtarget>();
+  MachineInstr &MI = *MBBI;
+  DebugLoc DL = MI.getDebugLoc();
+  Register DstReg = MI.getOperand(0).getReg();
+  if (STI.hasFeature(RISCV::FeatureCapMode)) {
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::AUIPCC), DstReg)
+        .addImm(0);
+  } else if (STI.hasFeature(RISCV::FeatureCheri)) {
+    auto SCR_PCC = RISCVSpecialCapReg::lookupSpecialCapRegByName("pcc");
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::CSpecialRW), DstReg)
+        .addImm(SCR_PCC->Encoding)
+        .addReg(RISCV::C0);
+  } else if (STI.hasFeature(RISCV::FeatureStdExtZCheriHybrid)) {
+    // Note: We emit the "wrong mode" auipc since using the "correct mode"
+    // instruction results in the code emitter complaining about mode.
+    // This is a hack, but it is safe because the encoding is the same.
+    // This pass runs right at the end of the pipeline, so instructions will
+    // not move around (so we don't need a TargetOpcode::BUNDLE here which is
+    // not handled by the remaining RISC-V codegen infrastructure).
+    auto WrongModeDstReg = RISCV::X0 + DstReg - RISCV::C0;
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::MODESW_CAP));
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::AUIPC), WrongModeDstReg)
+        .addImm(0);
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::MODESW_INT));
+  } else {
+    llvm_unreachable("Unexpected PseudoCGetPCC");
+  }
+  MI.eraseFromParent();
+
   return true;
 }
 
