@@ -511,11 +511,10 @@ define i8 addrspace(200)* @ddc_get() nounwind {
   %cap = call i8 addrspace(200)* @llvm.cheri.ddc.get()
   ret i8 addrspace(200)* %cap
 }
-
 define i8 addrspace(200)* @pcc_get() nounwind {
 ; PURECAP-LABEL: pcc_get:
 ; PURECAP:       # %bb.0:
-; PURECAP-NEXT:    auipcc ca0, 0
+; PURECAP-NEXT:    auipc ca0, 0
 ; PURECAP-NEXT:    ret
 ;
 ; HYBRID-LABEL: pcc_get:
