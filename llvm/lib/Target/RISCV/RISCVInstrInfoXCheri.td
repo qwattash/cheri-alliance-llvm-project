@@ -1476,11 +1476,12 @@ def : Pat<(int_cheri_ddc_get), (CSpecialRW SCR_DDC.Encoding, C0)>;
 let Predicates = [HasZCheriPurecapOrCheri, IsPureCapABI] in
 def : Pat<(int_cheri_stack_cap_get), (CLenVT (COPY C2))>;
 
-let Predicates = [HasZCheriPurecapOrCheri, IsCapMode] in
-def : Pat<(int_cheri_pcc_get), (AUIPCC 0)>;
+let Predicates = [HasZCheriHybrid, NotCapMode], Size = 12 in {
+  def PseudoPCCGet : Pseudo<(outs GPCR:$dst), (ins), []>;
+}
 
-let Predicates = [HasCheri, NotCapMode] in
-def : Pat<(int_cheri_pcc_get), (CSpecialRW SCR_PCC.Encoding, C0)>;
+let Predicates = [HasZCheriPurecapOrCheri] in
+def : Pat<(int_cheri_pcc_get), (PseudoPCCGet)>;
 
 /// Fast Register-Clearing Instructions
 
