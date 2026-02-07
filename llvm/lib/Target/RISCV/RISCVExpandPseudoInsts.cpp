@@ -65,6 +65,8 @@ private:
                              MachineBasicBlock::iterator MBBI,
                              MachineBasicBlock::iterator &NextMBBI);
   bool expandCGetAddr(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
+  bool expandPCCGet(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                    MachineBasicBlock::iterator &NextMBBI);
   bool expandCCOp(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandVSetVL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI);
@@ -136,6 +138,8 @@ bool RISCVExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandCapLoadTLSIEAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoCLC_TLS_GD:
     return expandCapLoadTLSGDCap(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoPCCGet:
+    return expandPCCGet(MBB, MBBI, NextMBBI);
   case RISCV::PseudoRV32ZdinxSD:
     return expandRV32ZdinxStore(MBB, MBBI);
   case RISCV::PseudoRV32ZdinxLD:
@@ -275,6 +279,32 @@ bool RISCVExpandPseudo::expandCGetAddr(MachineBasicBlock &MBB,
               getRegState(MBBI->getOperand(1)))
       .addImm(0);
   MBBI->eraseFromParent(); // The pseudo instruction is gone now.
+  return true;
+}
+
+bool RISCVExpandPseudo::expandPCCGet(MachineBasicBlock &MBB,
+                                     MachineBasicBlock::iterator MBBI,
+                                     MachineBasicBlock::iterator &NextMBBI) {
+  const auto &STI = MBB.getParent()->getSubtarget<RISCVSubtarget>();
+  Register DstReg = MBBI->getOperand(0).getReg();
+  DebugLoc DL = MBBI->getDebugLoc();
+
+  if (STI.isCapMode()) {
+    assert(STI.hasCheri() || STI.hasStdExtZCheriPureCap());
+    BuildMI(MBB, MBBI, DL, TII->get(RISCV::AUIPCC), DstReg).addImm(0);
+  } else {
+    if (STI.hasStdExtZCheriHybrid()) {
+      BuildMI(MBB, MBBI, DL, TII->get(RISCV::MODESW_CAP));
+      BuildMI(MBB, MBBI, DL, TII->get(RISCV::AUIPC), DstReg).addImm(0);
+      BuildMI(MBB, MBBI, DL, TII->get(RISCV::MODESW_INT));
+    } else {
+      assert(STI.hasCheri());
+      BuildMI(MBB, MBBI, DL, TII->get(RISCV::CSpecialRW), DstReg)
+          .addImm(/*PCC*/ 0x00)
+          .addReg(RISCV::C0);
+    }
+  }
+  MBBI->eraseFromParent();
   return true;
 }
 
