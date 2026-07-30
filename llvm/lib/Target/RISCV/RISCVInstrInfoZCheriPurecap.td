@@ -268,6 +268,12 @@ def : InstAlias<"csrrc $cd, $csr, $imm",
                 (CHERI_CSRRCI GPCR:$cd, cheri_csr_sysreg:$csr,   uimm5:$imm)>;
 }
 
+def : InstAlias<"csrrw $cd, $csr, $cs",
+                (CHERI_CSRRW YGPR:$cd, cheri_csr_sysreg:$csr, YGPR:$cs)>;
+def : InstAlias<"csrr $cd, $csr",
+                (CHERI_CSRRW YGPR:$cd, cheri_csr_sysreg:$csr, C0)>;
+def : InstAlias<"csrw $csr, $cs",
+                (CHERI_CSRRW C0, cheri_csr_sysreg:$csr, YGPR:$cs)>;
 } // Predicates = [HasZCheriPurecap]
 
 //===----------------------------------------------------------------------===//
